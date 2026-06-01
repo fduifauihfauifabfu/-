@@ -1,0 +1,86 @@
+import sqlite3
+import time
+from typing import List, Dict, Optional
+
+DB_FILE = "memory.db"
+
+# 初始化数据库和表结构
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # 创建记忆表，带索引优化查询
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS memories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp REAL NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL
+        )
+    """)
+    
+    # 为时间戳建索引，大幅提升时间范围查询性能
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_timestamp 
+        ON memories(timestamp)
+    """)
+    
+    conn.commit()
+    conn.close()
+
+# 保存单条对话记录（角色+内容+时间戳）
+def save_memory(role: str, content: str, timestamp: Optional[float] = None):
+    if timestamp is None:
+        timestamp = time.time()
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO memories (timestamp, role, content)
+        VALUES (?, ?, ?)
+    """, (timestamp, role, content))
+    
+    conn.commit()
+    conn.close()
+
+# 按时间范围查询记忆（利用索引，性能远高于JSON过滤）
+def query_memories_by_time(start_ts: float, end_ts: float) -> List[Dict]:
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, timestamp, role, content
+        FROM memories
+        WHERE timestamp BETWEEN ? AND ?
+        ORDER BY timestamp ASC
+    """, (start_ts, end_ts))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # 转换为字典格式，和原JSON接口兼容
+    return [
+        {
+            "id": row[0],
+            "timestamp": row[1],
+            "role": row[2],
+            "content": row[3]
+        }
+        for row in rows
+    ]
+
+# 批量加载所有记忆
+def load_all_memories() -> List[Dict]:
+    return query_memories_by_time(0, time.time())
+
+# 清空所有记忆
+def clear_memories():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM memories")
+    conn.commit()
+    conn.close()
+
+# 初始化模块
+init_db()
