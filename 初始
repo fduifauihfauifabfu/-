@@ -1,0 +1,45 @@
+import json
+import os
+from typing import List, Dict
+
+MEMORY_FILE = "memory.json"
+
+# 初始化：创建空文件（如果不存在）
+def init_memory():
+    if not os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
+
+# 保存单条对话记录
+def save_memory(conversation: Dict):
+    # 先读取已有数据
+    with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+        memories = json.load(f)
+    
+    # 追加新对话
+    memories.append(conversation)
+    
+    # 写回文件
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(memories, f, ensure_ascii=False, indent=2)
+
+# 批量加载记忆（全量读取）
+def load_all_memories() -> List[Dict]:
+    with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# 按时间范围查询（需要全量加载后过滤）
+def query_memories_by_time(start_ts: float, end_ts: float) -> List[Dict]:
+    all_memories = load_all_memories()
+    return [
+        mem for mem in all_memories
+        if start_ts <= mem["timestamp"] <= end_ts
+    ]
+
+# 清空记忆
+def clear_memories():
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump([], f)
+
+# 初始化模块
+init_memory()
